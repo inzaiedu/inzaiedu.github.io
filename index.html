@@ -74,15 +74,13 @@
             padding: 15px;
             overflow: auto; /* スクロール可能に */
             align-items: center;
-            justify-content: flex-start;
+            justify-content: center; /* 縦横ともに画面中央に配置 */
         }
 
         /* 縮小用コンテナを追加 */
         #zoom-container {
-            transform-origin: top center;
+            transform-origin: top left; /* 左上基準で縮小し、レイアウトのズレを防ぐ */
             transition: transform 0.1s ease-out;
-            display: flex;
-            justify-content: center;
         }
 
         .analysis-wrapper {
@@ -96,7 +94,9 @@
             grid-template-rows: 700px 60px 70px 140px;
             position: relative;
             flex-shrink: 0;
-            margin-bottom: 40px;
+            width: 940px;   /* 画面幅が狭くてもカード本体が縮まないように固定 */
+            height: 1020px; /* 高さが狭くてもカード本体が縮まないように固定 */
+            box-sizing: border-box;
         }
 
         .boccia-grid {
@@ -419,23 +419,27 @@
     // iPad等の画面幅に合わせて全体をスケーリングする関数
     function applyResponsiveZoom() {
         const container = document.getElementById('zoom-container');
-        const wrapper = document.getElementById('analysis-wrapper');
         const main = document.getElementById('main-content');
         
         const wrapperWidth = 940; // 盤面 + グラフ + padding等の合計幅
-        const availableWidth = main.clientWidth - 40; // 余白分を引く
+        const wrapperHeight = 1020; // 盤面 + グラフ + padding等の合計高さ
         
-        if (availableWidth < wrapperWidth) {
-            const scale = availableWidth / wrapperWidth;
-            container.style.transform = `scale(${scale})`;
-            // 縮小によって生じる下の余白を調整
-            container.style.height = (wrapper.offsetHeight * scale) + "px";
-            container.style.width = availableWidth + "px";
-        } else {
-            container.style.transform = 'scale(1)';
-            container.style.height = 'auto';
-            container.style.width = 'auto';
-        }
+        // mainのpadding(15px*2)を引いた、実際に描画可能な領域
+        const availableWidth = main.clientWidth - 30; 
+        const availableHeight = main.clientHeight - 30; 
+        
+        // 横幅だけでなく、縦幅(高さ)も画面内に収まるように両方の比率を計算
+        const scaleX = availableWidth / wrapperWidth;
+        const scaleY = availableHeight / wrapperHeight;
+        
+        // 縦横どちらでもはみ出さないように、小さい方のスケールを採用（最大1倍）
+        const scale = Math.min(scaleX, scaleY, 1);
+        
+        container.style.transform = `scale(${scale})`;
+        
+        // 縮小された比率に合わせてコンテナの実際の専有サイズを再設定
+        container.style.width = `${wrapperWidth * scale}px`;
+        container.style.height = `${wrapperHeight * scale}px`;
     }
 
     window.addEventListener('resize', applyResponsiveZoom);
