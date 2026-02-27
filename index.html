@@ -71,18 +71,20 @@
             display: flex;
             flex-direction: column;
             flex: 1;
-            padding: 15px;
-            overflow: auto; /* スクロール可能に */
+            padding: 10px;
+            overflow: hidden; /* PCでの見切れ防止のため基本はhidden */
             align-items: center;
-            justify-content: center; /* 縦横ともに画面中央に配置 */
+            justify-content: center; /* 常に中央に配置 */
+            position: relative;
         }
 
-        /* 縮小用コンテナを追加 */
+        /* 縮小用コンテナ */
         #zoom-container {
-            transform-origin: top center; /* 中央基準で縮小 */
+            transform-origin: center center; /* 中央基準で縮小することで見切れを防止 */
             transition: transform 0.1s ease-out;
             display: flex;
             justify-content: center;
+            align-items: center;
         }
 
         .analysis-wrapper {
@@ -91,13 +93,12 @@
             padding: 25px;
             box-shadow: 0 4px 15px rgba(0,0,0,0.05);
             display: grid;
-            /* カラム幅を調整: 盤面(550) | 棒(60) | 箱(80) | 代表値/入力(200) 合計890px + padding */
             grid-template-columns: 550px 60px 80px 200px;
             grid-template-rows: 700px 60px 70px 140px;
             position: relative;
             flex-shrink: 0;
-            width: 940px;   /* 画面幅が狭くてもカード本体が縮まないように固定 */
-            height: 1020px; /* 高さが狭くてもカード本体が縮まないように固定 */
+            width: 940px;   
+            height: 1020px; 
             box-sizing: border-box;
         }
 
@@ -202,19 +203,17 @@
             white-space: nowrap;
         }
 
-        /* 代表値・入力エリア */
         .stats-v { 
             grid-column: 4; 
             grid-row: 1; 
             display: flex; 
             flex-direction: column; 
             gap: 15px; 
-            padding-left: 10px; /* 少し幅を確保 */
+            padding-left: 10px; 
             padding-top: 10px;
             height: 700px; 
         }
 
-        /* モーター設定入力欄 */
         .motor-settings {
             background: #fdf2f2;
             padding: 14px;
@@ -247,7 +246,7 @@
             color: #1e293b;
             outline: none;
             background: white;
-            line-height: 1.5; /* 文字の下が切れないように */
+            line-height: 1.5;
             display: block;
         }
         .input-group input:focus {
@@ -278,7 +277,7 @@
         .stat-card { 
             background: #f8fafc; 
             border-radius: 8px; 
-            border: 1px solid #e2e8f0; 
+            border: 1px solid #e2e2f0; 
             text-align: center; 
             width: 100px; 
             height: 90px; 
@@ -313,7 +312,6 @@
 
         .hidden { visibility: hidden !important; opacity: 0; pointer-events: none; }
         
-        /* カスタムトースト/アラート */
         #custom-alert {
             position: fixed;
             top: 20px;
@@ -418,38 +416,34 @@
                 grid.appendChild(cell);
             }
         }
-        applyResponsiveZoom();
+        // 初期ロード時にズーム適用
+        setTimeout(applyResponsiveZoom, 100);
     }
 
-    // iPad等の画面向きに合わせてスケーリングを調整する関数
+    // PC/iPad両方で全体が収まるようにスケーリングを調整する関数
     function applyResponsiveZoom() {
         const container = document.getElementById('zoom-container');
         const main = document.getElementById('main-content');
         
-        const wrapperWidth = 940; // カード全体の幅
-        const wrapperHeight = 1020; // カード全体の高さ
-        const gridWidth = 550; // グレーの表（盤面）の幅
+        const wrapperWidth = 940; 
+        const wrapperHeight = 1020; 
         
-        const availableWidth = main.clientWidth - 30; 
-        const availableHeight = main.clientHeight - 30; 
+        // ヘッダーなどを除いた利用可能な領域
+        const availableWidth = main.clientWidth - 20; 
+        const availableHeight = main.clientHeight - 20; 
         
-        // 画面が横長（Landscape）か縦長（Portrait）かを判定
-        const isLandscape = availableWidth > availableHeight;
+        // 縦横どちらの比率に合わせるか計算
+        const scaleX = availableWidth / wrapperWidth;
+        const scaleY = availableHeight / wrapperHeight;
         
-        let scale = 1;
-
-        if (isLandscape) {
-            const scaleToGrid = availableWidth / (gridWidth + 100);
-            const scaleToHeight = availableHeight / 850;
-            scale = Math.min(scaleToGrid, scaleToHeight);
-            if (scale > 1.4) scale = 1.4;
-        } else {
-            const scaleX = availableWidth / wrapperWidth;
-            const scaleY = availableHeight / wrapperHeight;
-            scale = Math.min(scaleX, scaleY, 1);
-        }
+        // 小さい方の比率を採用して全体を収める
+        let scale = Math.min(scaleX, scaleY);
+        
+        // PCの巨大モニターなどで大きくなりすぎないように制限（最大1.2倍程度）
+        if (scale > 1.2) scale = 1.2;
         
         container.style.transform = `scale(${scale})`;
+        // コンテナ自体のサイズをスケール後のサイズに合わせる
         container.style.width = `${wrapperWidth * scale}px`;
         container.style.height = `${wrapperHeight * scale}px`;
     }
