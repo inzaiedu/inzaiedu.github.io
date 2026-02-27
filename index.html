@@ -441,22 +441,33 @@
         const scaleX = availableWidth / wrapperWidth;
         const scaleY = availableHeight / wrapperHeight;
         
-        // 基本的なスケール計算
-        let scale = Math.min(scaleX, scaleY);
+        let scale;
         
         // 特殊条件：iPadかつ横向き（Landscape）の場合
         const isLandscape = window.innerWidth > window.innerHeight;
         if (isIPad() && isLandscape) {
-            // iPad横向き時はタップしやすさを重視するため、縦横のうち大きい方を優先して
-            // 画面内にギリギリ収まる最大サイズまで引き上げる
-            // (通常よりも少しマージンを詰めて拡大を優先)
-            scale = Math.min(availableWidth / wrapperWidth, (availableHeight + 40) / wrapperHeight);
+            // iPad横向き時はタップしやすさを重視し、グレーの盤面（約600x750の領域）が
+            // 画面に収まるスケールを基準にする
+            scale = Math.min(availableWidth / 600, availableHeight / 750);
             
             // iPadでは1.5倍程度まで拡大を許容する
             if (scale > 1.5) scale = 1.5;
+
+            // 全体がはみ出す場合はスクロールできるようにし、上部見切れを防ぐ
+            main.style.alignItems = 'flex-start';
+            main.style.justifyContent = 'flex-start';
+            main.style.overflow = 'auto';
+            container.style.margin = '10px auto';
         } else {
-            // PCや縦向き時は、見切れ防止のため従来の制限
+            // PCや縦向き時は、全体が収まるように(従来通り)
+            scale = Math.min(scaleX, scaleY);
             if (scale > 1.2) scale = 1.2;
+
+            // 中央配置にし、スクロールなしで見切れ防止
+            main.style.alignItems = 'center';
+            main.style.justifyContent = 'center';
+            main.style.overflow = 'hidden';
+            container.style.margin = '0';
         }
         
         container.style.transform = `scale(${scale})`;
