@@ -3,8 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>ロボッチャ®分析パネル (印西教育版)</title>
+    <title>ロボッチャ®分析パネル</title>
     <link href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700&display=swap" rel="stylesheet">
+    <!-- HTML要素を画像化するためのライブラリ -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <style>
         :root {
             --primary: #6366f1;
@@ -21,7 +23,6 @@
         * { 
             box-sizing: border-box; 
             -webkit-tap-highlight-color: transparent; 
-            user-select: none;
         }
 
         body {
@@ -33,6 +34,7 @@
             display: flex;
             flex-direction: column;
             height: 100vh;
+            user-select: none;
         }
 
         header {
@@ -60,6 +62,7 @@
             color: #475569;
         }
         button.active { background: var(--primary); color: white; border-color: var(--primary); }
+        button.success { background: #10b981; color: white; border-color: #059669; }
         button.danger { color: #dc2626; border-color: #fecaca; }
         button.confirm-delete { background: #dc2626; color: white; border-color: #b91c1c; }
 
@@ -79,8 +82,9 @@
             padding: 25px;
             box-shadow: 0 4px 15px rgba(0,0,0,0.05);
             display: grid;
-            grid-template-columns: 550px 60px 50px 140px;
-            grid-template-rows: 700px 60px 50px 140px;
+            /* カラム幅を調整: 盤面(550) | 棒(60) | 箱(80) | 代表値/入力(200) */
+            grid-template-columns: 550px 60px 80px 200px;
+            grid-template-rows: 700px 60px 70px 140px;
             position: relative;
             flex-shrink: 0;
             margin-bottom: 20px;
@@ -150,41 +154,173 @@
             100% { transform: scale(1); opacity: 1; }
         }
 
-        .boxplot-v { grid-column: 3; grid-row: 1; position: relative; border-left: 1px dashed var(--line-color); }
-        .boxplot-h { grid-column: 1; grid-row: 3; position: relative; border-top: 1px dashed var(--line-color); }
+        .boxplot-v { grid-column: 3; grid-row: 1; position: relative; border-left: 1px dashed var(--line-color); margin-left: 25px; }
+        .boxplot-h { grid-column: 1; grid-row: 3; position: relative; border-top: 1px dashed var(--line-color); margin-top: 15px; }
         .box-rect { position: absolute; background: var(--primary-light); border: 2px solid var(--primary); z-index: 2; }
         .whisker-line { position: absolute; background: var(--primary); z-index: 1; }
         .median-line { position: absolute; background: var(--median-color); z-index: 3; }
 
-        .chart-v { grid-column: 2; grid-row: 1; display: grid; grid-template-rows: repeat(14, var(--grid-size)); }
-        .chart-h { grid-column: 1; grid-row: 2; display: grid; grid-template-columns: repeat(11, var(--grid-size)); }
-        .bar-v { height: 40px; background: var(--primary); border-radius: 0 4px 4px 0; align-self: center; transition: width 0.3s; width: 0; }
-        .bar-h { width: 40px; background: var(--primary); border-radius: 0 0 4px 4px; justify-self: center; transition: height 0.3s; height: 0; }
-        
-        .stats-v { grid-column: 4; grid-row: 1; display: flex; flex-direction: column; gap: 10px; padding-left: 10px; justify-content: center; height: 700px; }
-        .stats-h { grid-column: 1; grid-row: 4; display: flex; gap: 10px; padding-top: 10px; justify-content: center; width: 550px; position: relative; }
+        .value-label {
+            font-size: 10px;
+            font-weight: bold;
+            color: var(--primary);
+            position: absolute;
+            pointer-events: none;
+        }
 
-        .stat-card { background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0; text-align: center; width: 90px; height: 90px; display: flex; flex-direction: column; justify-content: center; align-items: center; flex-shrink: 0; }
+        .chart-v { grid-column: 2; grid-row: 1; display: grid; grid-template-rows: repeat(14, var(--grid-size)); position: relative; }
+        .chart-h { grid-column: 1; grid-row: 2; display: grid; grid-template-columns: repeat(11, var(--grid-size)); position: relative; }
+        
+        .bar-v-wrapper { height: var(--grid-size); display: flex; align-items: center; position: relative; }
+        .bar-h-wrapper { width: var(--grid-size); display: flex; flex-direction: column; align-items: center; position: relative; }
+
+        .bar-v { height: 40px; background: var(--primary); border-radius: 0 4px 4px 0; transition: width 0.3s; width: 0; }
+        .bar-h { width: 40px; background: var(--primary); border-radius: 0 0 4px 4px; transition: height 0.3s; height: 0; }
+        
+        .bar-label-v { left: 100%; margin-left: 4px; }
+        .bar-label-h { top: 100%; margin-top: 4px; text-align: center; width: 100%; }
+
+        .boxplot-label {
+            position: absolute;
+            font-size: 9px;
+            font-weight: bold;
+            color: #475569;
+            background: rgba(255,255,255,0.8);
+            padding: 1px 2px;
+            border-radius: 2px;
+            white-space: nowrap;
+        }
+
+        /* 代表値・入力エリア */
+        .stats-v { 
+            grid-column: 4; 
+            grid-row: 1; 
+            display: flex; 
+            flex-direction: column; 
+            gap: 15px; 
+            padding-left: 15px; 
+            padding-top: 10px;
+            height: 700px; 
+        }
+
+        /* モーター設定入力欄 */
+        .motor-settings {
+            background: #fdf2f2;
+            padding: 14px;
+            border-radius: 10px;
+            border: 1px solid #fecaca;
+            margin-bottom: 10px;
+            width: 100%;
+        }
+        .input-group {
+            margin-bottom: 12px;
+            text-align: left;
+        }
+        .input-group:last-child { margin-bottom: 0; }
+        .input-group label {
+            display: block;
+            font-size: 0.75rem;
+            color: #b91c1c;
+            font-weight: bold;
+            margin-bottom: 4px;
+            white-space: nowrap;
+        }
+        .input-group input {
+            width: 100%;
+            padding: 6px 10px;
+            border: 1px solid #fca5a5;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            font-weight: bold;
+            color: #1e293b;
+            outline: none;
+            background: white;
+        }
+        .input-group input:focus {
+            border-color: var(--target-red);
+            box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.1);
+        }
+
+        .stats-container {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            flex-grow: 1;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .stats-h { 
+            grid-column: 1; 
+            grid-row: 4; 
+            display: flex; 
+            gap: 10px; 
+            padding-top: 35px;
+            justify-content: center; 
+            width: 550px; 
+            position: relative;
+        }
+
+        .stat-card { 
+            background: #f8fafc; 
+            border-radius: 8px; 
+            border: 1px solid #e2e8f0; 
+            text-align: center; 
+            width: 100px; 
+            height: 90px; 
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            flex-shrink: 0;
+        }
         .stat-label { font-size: 0.7rem; color: #64748b; font-weight: bold; margin-bottom: 4px; }
         .stat-value { font-size: 1.1rem; font-weight: 800; color: var(--text-main); }
         .stat-note { font-size: 0.65rem; color: #94a3b8; margin-top: 8px; text-align: center; font-weight: bold; width: 100%; position: absolute; bottom: -24px; left: 0; }
 
-        .ai-panel { width: 800px; background: white; border-radius: 12px; padding: 24px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); display: none; flex-direction: column; gap: 15px; margin-bottom: 40px; border: 1px solid var(--primary-light); }
-        .ai-content { font-size: 1rem; line-height: 1.7; color: #334155; padding: 20px; background: #fdfefe; border-radius: 10px; border: 1px solid #e2e8f0; min-height: 150px; max-height: 400px; overflow-y: auto; }
-        .ai-chat-input-area { display: flex; gap: 10px; margin-top: 10px; }
-        .ai-chat-input { flex: 1; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0; font-family: inherit; font-size: 0.95rem; outline: none; }
-        .ai-send-btn { background: var(--primary); color: white; border: none; padding: 0 20px; border-radius: 8px; cursor: pointer; font-weight: bold; }
-
-        .history-panel { width: 100%; background: #fff; padding: 15px 24px; border-top: 2px solid #e2e8f0; display: none; overflow-x: auto; box-shadow: 0 -4px 10px rgba(0,0,0,0.03); position: fixed; bottom: 0; z-index: 50; }
+        .history-panel {
+            width: 100%;
+            background: #fff;
+            padding: 15px 24px;
+            border-top: 2px solid #e2e8f0;
+            display: none;
+            overflow-x: auto;
+            box-shadow: 0 -4px 10px rgba(0,0,0,0.03);
+            position: fixed;
+            bottom: 0;
+            z-index: 50;
+        }
         .history-list { display: inline-flex; gap: 12px; }
-        .history-item { background: #f1f5f9; padding: 10px 15px; border-radius: 8px; font-size: 0.9rem; display: flex; align-items: center; gap: 10px; border: 1px solid #cbd5e1; }
+        .history-item { 
+            background: #f1f5f9; padding: 10px 15px; border-radius: 8px; 
+            font-size: 0.9rem; display: flex; align-items: center; gap: 10px;
+            border: 1px solid #cbd5e1;
+        }
 
-        .loading-dots:after { content: '.'; animation: dots 1s steps(5, end) infinite; }
-        @keyframes dots { 0%, 20% { content: '.'; } 40% { content: '..'; } 60% { content: '...'; } 80%, 100% { content: ''; } }
-        .hidden { visibility: hidden; opacity: 0; pointer-events: none; }
+        .hidden { visibility: hidden !important; opacity: 0; pointer-events: none; }
+        
+        /* カスタムトースト/アラート */
+        #custom-alert {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #1e293b;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 12px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            z-index: 1000;
+            display: none;
+            font-size: 0.9rem;
+            text-align: center;
+            max-width: 90vw;
+        }
     </style>
 </head>
 <body onclick="onGlobalClick(event)">
+
+<div id="custom-alert"></div>
 
 <header onclick="event.stopPropagation()">
     <div class="logo-area">
@@ -195,39 +331,44 @@
         <button onclick="toggleLayer('boxplot')" id="btn-boxplot" class="active">箱ひげ図</button>
         <button onclick="toggleLayer('stats')" id="btn-stats" class="active">代表値</button>
         <button onclick="toggleTargetMode()" id="btn-target">目標設定</button>
-        <button onclick="toggleAIPanel()" id="btn-ai-toggle">AI解析表示</button>
+        <button onclick="captureScreenshot()" id="btn-capture" class="success">画像を保存</button>
         <button onclick="toggleHistory()" id="btn-history">履歴</button>
         <button onclick="handleClearClick()" id="btn-clear" class="danger">全消去</button>
     </div>
 </header>
 
 <main>
-    <div class="analysis-wrapper" onclick="event.stopPropagation()">
-        <div id="grid" class="boccia-grid"></div>
+    <div id="analysis-wrapper" class="analysis-wrapper">
+        <!-- 盤面（グレーのグリッド部分） -->
+        <div id="grid" class="boccia-grid" onclick="event.stopPropagation()"></div>
+        
         <div id="chart-v" class="chart-v"></div>
         <div id="boxplot-v" class="boxplot-v"></div>
-        <div id="stats-v" class="stats-v"></div>
+        
+        <div id="stats-v" class="stats-v">
+            <!-- モーター設定入力欄 -->
+            <div class="motor-settings" onclick="event.stopPropagation()">
+                <div class="input-group">
+                    <label>モータースピード (%)</label>
+                    <input type="number" id="motor-speed" placeholder="数値を半角で入力" min="0" max="100">
+                </div>
+                <div class="input-group">
+                    <label>モーター回転角度 (度)</label>
+                    <input type="number" id="motor-angle" placeholder="数値を半角で入力">
+                </div>
+            </div>
+            
+            <div id="stats-v-items" class="stats-container"></div>
+        </div>
+
         <div id="chart-h" class="chart-h"></div>
         <div id="boxplot-h" class="boxplot-h"></div>
         <div id="stats-h" class="stats-h"></div>
     </div>
-
-    <div id="ai-panel" class="ai-panel" onclick="event.stopPropagation()">
-        <div style="font-weight:bold; font-size:1.2rem; display:flex; align-items:center; gap:10px;">🤖 AI解析エンジン <small style="font-weight:normal; font-size:0.8rem; color:#64748b;">powered by Gemini via GAS</small></div>
-        <div id="ai-response" class="ai-content">
-            <p>ロボットの投球データを入力して「解析開始」ボタンを押してください。</p>
-            <button id="ai-start-btn" onclick="runGeminiAnalysis()" style="background:var(--primary); color:white; padding:12px 30px; border-radius:8px; border:none; cursor:pointer; font-weight:bold; font-size:1rem; margin-top:10px;">解析開始</button>
-        </div>
-        <div id="ai-chat-area" style="display:none;">
-            <div class="ai-chat-input-area">
-                <input type="text" id="ai-user-query" class="ai-chat-input" placeholder="この分析について質問する" onkeypress="if(event.key==='Enter') sendAIQuestion()">
-                <button id="ai-send-btn" class="ai-send-btn" onclick="sendAIQuestion()">質問</button>
-            </div>
-        </div>
-    </div>
 </main>
 
 <div id="history-panel" class="history-panel" onclick="event.stopPropagation()">
+    <div style="font-size: 0.85rem; color: #64748b; margin-bottom: 10px; font-weight:bold;">投球履歴</div>
     <div id="history-list" class="history-list"></div>
 </div>
 
@@ -235,16 +376,12 @@
     const columns = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K'];
     const invalidList = ['A13', 'A14', 'B14', 'C14', 'I14', 'J14', 'K13', 'K14'];
     
-    // 【重要】ここに作成したGASのウェブアプリURLを貼り付けてください
-    const gasUrl = "https://script.google.com/macros/s/AKfycbzTAplvfFx02_3IyVwzqYxDUSKo7ufy7IDh_4evQlWrbmPrdIdiaM_0rCacKQlslUEr-Q/exec"; 
-
     let shots = [];
     let targetId = null;
     let isTargetVisible = false;
     let modeTargetSelection = false;
     let deleteConfirmState = false;
     let isMarkerAnimating = true;
-    let aiThread = [];
 
     function initGrid() {
         const grid = document.getElementById('grid');
@@ -252,190 +389,310 @@
             for (let c = 0; c < 11; c++) {
                 const id = `${columns[c]}${r}`;
                 const cell = document.createElement('div');
-                cell.className = 'cell'; cell.id = id; cell.textContent = id;
-                if (invalidList.includes(id)) cell.classList.add('invalid');
-                else cell.onclick = (e) => { e.stopPropagation(); onCellClick(id, r, c + 1); };
+                cell.className = 'cell';
+                cell.id = id;
+                cell.textContent = id;
+                if (invalidList.includes(id)) {
+                    cell.classList.add('invalid');
+                } else {
+                    cell.onclick = (e) => {
+                        onCellClick(id, r, c + 1);
+                    };
+                }
                 grid.appendChild(cell);
             }
         }
     }
 
+    function onGlobalClick(e) {
+        if (e.target.tagName === 'INPUT') return;
+        resetDeleteButton();
+        isMarkerAnimating = false;
+        refreshAll();
+    }
+
     function onCellClick(id, r, c) {
         resetDeleteButton();
+        isMarkerAnimating = true; 
         if (modeTargetSelection) {
-            targetId = id; modeTargetSelection = false; isTargetVisible = true;
-            updateTargetUI(); updateTargetButtonState(); return;
-        }
-        shots.push({ id, row: r, col: c, ts: Date.now() });
-        isMarkerAnimating = true; refreshAll();
-    }
-
-    async function runGeminiAnalysis() {
-        const out = document.getElementById('ai-response');
-        if (shots.length < 3) { out.innerHTML = "<p>分析には3球以上のデータが必要です。</p>"; return; }
-        
-        document.getElementById('ai-start-btn').disabled = true;
-        out.innerHTML = '<p class="loading-dots">印西AIエンジンで解析中</p>';
-        
-        const rowData = shots.map(s => s.row);
-        const colData = shots.map(s => s.col);
-        const avgR = (rowData.reduce((a,b)=>a+b,0)/rowData.length).toFixed(1);
-        const avgC = (colData.reduce((a,b)=>a+b,0)/colData.length).toFixed(1);
-        let targetPos = isTargetVisible && targetId ? targetId : "未設定";
-        
-        const prompt = `ロボッチャ®投球分析。データ: 数 ${shots.length}, 縦[${rowData.join(',')}], 横[${colData.join(',')}], 平均[${avgR}, ${avgC}], 目標[${targetPos}]。改善案を小中学生向けに提案してください。`;
-        aiThread = [{ role: "user", parts: [{ text: prompt }] }];
-        await callGAS(out);
-    }
-
-    async function sendAIQuestion() {
-        const input = document.getElementById('ai-user-query');
-        const query = input.value.trim();
-        if (!query) return;
-        const out = document.getElementById('ai-response');
-        input.value = "";
-        out.innerHTML += `<div style="margin: 15px 0; padding: 10px; background: #f1f5f9; border-radius: 8px;"><strong>質問：</strong> ${query}</div>`;
-        out.innerHTML += `<p id="ai-loading" class="loading-dots">考え中</p>`;
-        aiThread.push({ role: "user", parts: [{ text: query }] });
-        await callGAS(out, true);
-    }
-
-    async function callGAS(outputElement, isFollowUp = false) {
-        if (gasUrl.includes("XXXXX")) {
-            outputElement.innerHTML = "<p style='color:red;'>GASのURLが設定されていません。コードの253行目を確認してください。</p>";
+            targetId = id;
+            modeTargetSelection = false;
+            isTargetVisible = true;
+            updateTargetUI();
+            updateTargetButtonState();
             return;
         }
+        shots.push({ id, row: r, col: c, ts: Date.now() });
+        refreshAll();
+    }
 
-        try {
-            const response = await fetch(gasUrl, {
-                method: "POST",
-                body: JSON.stringify({
-                    contents: aiThread,
-                    systemInstruction: { parts: [{ text: "あなたはロボッチャ®の技術顧問です。小中学生向けに噛み砕いて、元気よく答えてください。" }] }
-                })
-            });
-            const result = await response.json();
-            const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
-            
-            if (!text) throw new Error();
-            aiThread.push({ role: "model", parts: [{ text: text }] });
-            
-            if (isFollowUp) document.getElementById('ai-loading')?.remove();
-            else outputElement.innerHTML = "";
-            
-            outputElement.innerHTML += `<div>${text.replace(/\n/g, '<br>')}</div>`;
-            document.getElementById('ai-chat-area').style.display = 'block';
-            outputElement.scrollTop = outputElement.scrollHeight;
-        } catch (e) {
-            outputElement.innerHTML += `<p style="color:red;">エラー：印西市のアカウントでログインしているか、GASの設定を確認してください。</p>`;
+    function toggleTargetMode() {
+        resetDeleteButton();
+        isMarkerAnimating = false; 
+        if (modeTargetSelection) {
+            modeTargetSelection = false;
+        } else if (!isTargetVisible) {
+            modeTargetSelection = true;
+        } else {
+            isTargetVisible = false;
+        }
+        updateTargetUI();
+        updateTargetButtonState();
+        refreshAll();
+    }
+
+    function updateTargetButtonState() {
+        const btn = document.getElementById('btn-target');
+        if (modeTargetSelection) {
+            btn.classList.add('active');
+            btn.textContent = "盤面を選択中...";
+        } else if (isTargetVisible) {
+            btn.classList.add('active');
+            btn.textContent = "目標クリア";
+        } else {
+            btn.classList.remove('active');
+            btn.textContent = "目標設定";
         }
     }
 
-    // --- ユーティリティ系関数 ---
-    function onGlobalClick() { resetDeleteButton(); isMarkerAnimating = false; refreshAll(); }
-    function toggleLayer(type) { 
-        let ids = (type === 'graph') ? ['chart-v', 'chart-h'] : (type === 'boxplot') ? ['boxplot-v', 'boxplot-h'] : ['stats-v', 'stats-h'];
-        ids.forEach(id => document.getElementById(id).classList.toggle('hidden'));
-        document.getElementById(`btn-${type}`).classList.toggle('active');
+    function updateTargetUI() {
+        document.querySelectorAll('.cell').forEach(el => el.classList.remove('target-active'));
+        if (isTargetVisible && targetId) {
+            const t = document.getElementById(targetId);
+            if (t) t.classList.add('target-active');
+        }
     }
-    function toggleAIPanel() {
-        const panel = document.getElementById('ai-panel');
-        const isHidden = window.getComputedStyle(panel).display === 'none';
-        panel.style.display = isHidden ? 'flex' : 'none';
-        document.getElementById('btn-ai-toggle').classList.toggle('active', isHidden);
+
+    async function captureScreenshot() {
+        const wrapper = document.getElementById('analysis-wrapper');
+        const btn = document.getElementById('btn-capture');
+        const originalText = btn.textContent;
+        
+        btn.textContent = "作成中...";
+        btn.disabled = true;
+
+        try {
+            const canvas = await html2canvas(wrapper, {
+                scale: 2,
+                backgroundColor: "#ffffff",
+                logging: false,
+                useCORS: true
+            });
+            
+            const image = canvas.toDataURL("image/png");
+            const link = document.createElement('a');
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+            link.download = `roboccia-analysis-${timestamp}.png`;
+            link.href = image;
+            link.click();
+            
+            btn.textContent = "保存完了！";
+            setTimeout(() => {
+                btn.textContent = originalText;
+                btn.disabled = false;
+            }, 2000);
+        } catch (err) {
+            console.error(err);
+            btn.textContent = "失敗";
+            setTimeout(() => {
+                btn.textContent = originalText;
+                btn.disabled = false;
+            }, 2000);
+        }
     }
+
     function toggleHistory() {
+        resetDeleteButton();
         const panel = document.getElementById('history-panel');
+        const btn = document.getElementById('btn-history');
         const isHidden = window.getComputedStyle(panel).display === 'none';
         panel.style.display = isHidden ? 'block' : 'none';
-        document.getElementById('btn-history').classList.toggle('active', isHidden);
+        btn.classList.toggle('active', isHidden);
     }
-    function refreshAll() { renderMarkers(); updateVisuals(); updateHistoryList(); }
+
+    function refreshAll() {
+        renderMarkers();
+        updateVisuals();
+        updateHistoryList();
+    }
+
     function renderMarkers() {
         document.querySelectorAll('.marker').forEach(m => m.remove());
-        const counts = {}; shots.forEach(s => counts[s.id] = (counts[s.id] || 0) + 1);
+        const counts = {};
+        shots.forEach(s => counts[s.id] = (counts[s.id] || 0) + 1);
         Object.keys(counts).forEach(id => {
-            const count = counts[id]; const cell = document.getElementById(id);
-            const m = document.createElement('div'); m.className = 'marker';
-            let size = 20 + (count - 1) * 7.5; m.style.width = size + 'px'; m.style.height = size + 'px';
+            const count = counts[id];
+            const cell = document.getElementById(id);
+            if (!cell) return;
+            const m = document.createElement('div');
+            m.className = 'marker';
+            let size = 20 + (count - 1) * 7.5;
+            m.style.width = size + 'px';
+            m.style.height = size + 'px';
             m.textContent = count;
-            if (isMarkerAnimating && shots.length > 0 && shots[shots.length-1].id === id) m.classList.add('last-shot');
+            if (isMarkerAnimating && shots.length > 0 && shots[shots.length-1].id === id) {
+                m.classList.add('last-shot');
+            }
             cell.appendChild(m);
         });
     }
+
     function updateVisuals() {
-        const rows = shots.map(s => s.row), cols = shots.map(s => s.col);
-        renderBars('chart-v', rows, 14, 'v'); renderBars('chart-h', cols, 11, 'h');
-        renderBoxPlot('boxplot-v', rows, 14, 'v'); renderBoxPlot('boxplot-h', cols, 11, 'h');
-        renderStats('stats-v', rows, false); renderStats('stats-h', cols, true);
+        const rows = shots.map(s => s.row);
+        const cols = shots.map(s => s.col);
+        renderBars('chart-v', rows, 14, 'v');
+        renderBars('chart-h', cols, 11, 'h');
+        renderBoxPlot('boxplot-v', rows, 14, 'v');
+        renderBoxPlot('boxplot-h', cols, 11, 'h');
+        renderStats('stats-v-items', rows, false);
+        renderStats('stats-h', cols, true);
     }
+
     function renderBars(containerId, data, max, type) {
-        const el = document.getElementById(containerId); el.innerHTML = '';
-        const freq = new Array(max + 1).fill(0); data.forEach(v => freq[v]++);
+        const el = document.getElementById(containerId);
+        el.innerHTML = '';
+        const freq = new Array(max + 1).fill(0);
+        data.forEach(v => freq[v]++);
         const maxFreq = Math.max(...freq, 1);
         for (let i = 1; i <= max; i++) {
-            const b = document.createElement('div'); b.className = type === 'v' ? 'bar-v' : 'bar-h';
-            if (type === 'v') b.style.width = (freq[i] * (55 / maxFreq)) + 'px';
-            else b.style.height = (freq[i] * (55 / maxFreq)) + 'px';
-            el.appendChild(b);
+            const wrapper = document.createElement('div');
+            wrapper.className = type === 'v' ? 'bar-v-wrapper' : 'bar-h-wrapper';
+            
+            const b = document.createElement('div');
+            b.className = type === 'v' ? 'bar-v' : 'bar-h';
+            
+            const val = freq[i];
+            const barSize = (val * (55 / maxFreq));
+            
+            if (type === 'v') b.style.width = barSize + 'px';
+            else b.style.height = barSize + 'px';
+            
+            wrapper.appendChild(b);
+
+            if (val > 0) {
+                const label = document.createElement('div');
+                label.className = `value-label ${type === 'v' ? 'bar-label-v' : 'bar-label-h'}`;
+                label.textContent = val;
+                wrapper.appendChild(label);
+            }
+            
+            el.appendChild(wrapper);
         }
     }
+
     function renderBoxPlot(containerId, data, max, type) {
-        const el = document.getElementById(containerId); el.innerHTML = '';
+        const el = document.getElementById(containerId);
+        el.innerHTML = '';
         if (data.length < 2) return;
         const s = [...data].sort((a,b) => a - b);
         const min = s[0], maxVal = s[s.length-1], q1 = getQ(s, 0.25), med = getQ(s, 0.5), q3 = getQ(s, 0.75);
         const pos = v => (v - 0.5) * 50;
+        
+        const labels = [{v: min}, {v: q1}, {v: med}, {v: q3}, {v: maxVal}];
+
         if (type === 'v') {
-            el.innerHTML += `<div class="whisker-line" style="left:24px; top:${pos(min)}px; width:2px; height:${pos(maxVal)-pos(min)}px"></div>`;
-            el.innerHTML += `<div class="box-rect" style="left:10px; width:30px; top:${pos(q1)}px; height:${pos(q3)-pos(q1)}px"></div>`;
-            el.innerHTML += `<div class="median-line" style="left:10px; width:30px; top:${pos(med)}px; height:3px"></div>`;
+            el.innerHTML += `<div class="whisker-line" style="left:14px; top:${pos(min)}px; width:2px; height:${pos(maxVal)-pos(min)}px"></div>`;
+            el.innerHTML += `<div class="box-rect" style="left:0px; width:30px; top:${pos(q1)}px; height:${pos(q3)-pos(q1)}px"></div>`;
+            el.innerHTML += `<div class="median-line" style="left:0px; width:30px; top:${pos(med)}px; height:3px"></div>`;
+            
+            labels.forEach(item => {
+                const lbl = document.createElement('div');
+                lbl.className = 'boxplot-label';
+                lbl.style.top = (pos(item.v) - 6) + 'px';
+                lbl.style.left = '35px';
+                lbl.textContent = item.v;
+                el.appendChild(lbl);
+            });
         } else {
-            el.innerHTML += `<div class="whisker-line" style="top:24px; left:${pos(min)}px; height:2px; width:${pos(maxVal)-pos(min)}px"></div>`;
-            el.innerHTML += `<div class="box-rect" style="top:10px; height:30px; left:${pos(q1)}px; width:${pos(q3)-pos(q1)}px"></div>`;
-            el.innerHTML += `<div class="median-line" style="top:10px; height:30px; left:${pos(med)}px; width:3px"></div>`;
+            el.innerHTML += `<div class="whisker-line" style="top:14px; left:${pos(min)}px; height:2px; width:${pos(maxVal)-pos(min)}px"></div>`;
+            el.innerHTML += `<div class="box-rect" style="top:0px; height:30px; left:${pos(q1)}px; width:${pos(q3)-pos(q1)}px"></div>`;
+            el.innerHTML += `<div class="median-line" style="top:0px; height:30px; left:${pos(med)}px; width:3px"></div>`;
+
+            labels.forEach(item => {
+                const lbl = document.createElement('div');
+                lbl.className = 'boxplot-label';
+                lbl.style.left = (pos(item.v) - 8) + 'px';
+                lbl.style.top = '35px';
+                lbl.textContent = item.v;
+                el.appendChild(lbl);
+            });
         }
     }
-    function getQ(arr, q) { const p = (arr.length - 1) * q, b = Math.floor(p), r = p - b; return arr[b+1] !== undefined ? arr[b] + r * (arr[b+1] - arr[b]) : arr[b]; }
+
+    function getQ(arr, q) {
+        const p = (arr.length - 1) * q;
+        const b = Math.floor(p), r = p - b;
+        return arr[b+1] !== undefined ? arr[b] + r * (arr[b+1] - arr[b]) : arr[b];
+    }
+
     function renderStats(containerId, data, isHorizontal) {
-        const el = document.getElementById(containerId); if (data.length === 0) { el.innerHTML = ''; return; }
+        const el = document.getElementById(containerId);
+        if (data.length === 0) { el.innerHTML = ''; return; }
         const avg = (data.reduce((a,b)=>a+b,0)/data.length).toFixed(1);
         const med = getQ([...data].sort((a,b)=>a-b), 0.5).toFixed(1);
-        const counts = {}; data.forEach(v => counts[v] = (counts[v] || 0) + 1);
+        const counts = {};
+        data.forEach(v => counts[v] = (counts[v] || 0) + 1);
         let mode = Object.keys(counts).reduce((a, b) => counts[a] > counts[b] ? a : b);
-        el.innerHTML = `<div class="stat-card"><div class="stat-label">平均値</div><div class="stat-value">${avg}</div></div><div class="stat-card"><div class="stat-label">中央値</div><div class="stat-value">${med}</div></div><div class="stat-card"><div class="stat-label">最頻値</div><div class="stat-value">${mode}</div></div>`;
+        
+        el.innerHTML = `
+            <div class="stat-card"><div class="stat-label">平均値</div><div class="stat-value">${avg}</div></div>
+            <div class="stat-card"><div class="stat-label">中央値</div><div class="stat-value">${med}</div></div>
+            <div class="stat-card"><div class="stat-label">最頻値</div><div class="stat-value">${mode}</div></div>
+            ${isHorizontal ? '<div class="stat-note">※ A=1, B=2...として計算</div>' : ''}
+        `;
     }
+
+    function toggleLayer(type) {
+        resetDeleteButton();
+        let ids = [];
+        if (type === 'graph') ids = ['chart-v', 'chart-h'];
+        else if (type === 'boxplot') ids = ['boxplot-v', 'boxplot-h'];
+        else if (type === 'stats') ids = ['stats-v', 'stats-h'];
+
+        ids.forEach(id => document.getElementById(id).classList.toggle('hidden'));
+        document.getElementById(`btn-${type}`).classList.toggle('active');
+    }
+
     function updateHistoryList() {
         const list = document.getElementById('history-list');
-        list.innerHTML = shots.map((s, i) => `<div class="history-item"><span>#${i+1}: <strong>${s.id}</strong></span><span onclick="removeShot(${i})" style="cursor:pointer; color:#ef4444; font-weight:bold; margin-left:5px;">✕</span></div>`).reverse().join('');
+        list.innerHTML = shots.map((s, i) => `
+            <div class="history-item">
+                <span>#${i+1}: <strong>${s.id}</strong></span>
+                <span onclick="removeShot(${i})" style="cursor:pointer; color:#ef4444; font-weight:bold; margin-left:5px;">✕</span>
+            </div>
+        `).reverse().join('');
     }
-    function removeShot(idx) { shots.splice(idx, 1); refreshAll(); }
+
+    function removeShot(idx) {
+        shots.splice(idx, 1);
+        refreshAll();
+    }
+
     function handleClearClick() {
         const btn = document.getElementById('btn-clear');
         if (!deleteConfirmState) {
-            deleteConfirmState = true; btn.textContent = "本当によろしいですか？"; btn.classList.add('confirm-delete');
+            deleteConfirmState = true;
+            btn.textContent = "本当によろしいですか？";
+            btn.classList.add('confirm-delete');
             setTimeout(() => { if (deleteConfirmState) resetDeleteButton(); }, 5000);
         } else {
-            shots = []; targetId = null; isTargetVisible = false; aiThread = []; refreshAll();
-            updateTargetUI(); updateTargetButtonState(); resetDeleteButton();
+            shots = [];
+            targetId = null;
+            isTargetVisible = false;
+            document.getElementById('motor-speed').value = '';
+            document.getElementById('motor-angle').value = '';
+            refreshAll();
+            updateTargetUI();
+            updateTargetButtonState();
+            resetDeleteButton();
         }
     }
-    function resetDeleteButton() { deleteConfirmState = false; const btn = document.getElementById('btn-clear'); btn.textContent = "全消去"; btn.classList.remove('confirm-delete'); }
-    function toggleTargetMode() {
-        if (modeTargetSelection) modeTargetSelection = false;
-        else if (!isTargetVisible) modeTargetSelection = true;
-        else isTargetVisible = false;
-        updateTargetUI(); updateTargetButtonState(); refreshAll();
-    }
-    function updateTargetButtonState() {
-        const btn = document.getElementById('btn-target');
-        if (modeTargetSelection) { btn.classList.add('active'); btn.textContent = "盤面を選択中..."; }
-        else if (isTargetVisible) { btn.classList.add('active'); btn.textContent = "目標クリア"; }
-        else { btn.classList.remove('active'); btn.textContent = "目標設定"; }
-    }
-    function updateTargetUI() {
-        document.querySelectorAll('.cell').forEach(el => el.classList.remove('target-active'));
-        if (isTargetVisible && targetId) { const t = document.getElementById(targetId); if (t) t.classList.add('target-active'); }
+
+    function resetDeleteButton() {
+        deleteConfirmState = false;
+        const btn = document.getElementById('btn-clear');
+        btn.textContent = "全消去";
+        btn.classList.remove('confirm-delete');
     }
 
     initGrid();
