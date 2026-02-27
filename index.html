@@ -209,7 +209,7 @@
             display: flex; 
             flex-direction: column; 
             gap: 15px; 
-            padding-left: 15px; 
+            padding-left: 10px; /* 少し幅を確保 */
             padding-top: 10px;
             height: 700px; 
         }
@@ -235,6 +235,7 @@
             font-weight: bold;
             margin-bottom: 4px;
             white-space: nowrap;
+            line-height: 1.2;
         }
         .input-group input {
             width: 100%;
@@ -246,6 +247,8 @@
             color: #1e293b;
             outline: none;
             background: white;
+            line-height: 1.5; /* 文字の下が切れないように */
+            display: block;
         }
         .input-group input:focus {
             border-color: var(--target-red);
@@ -436,28 +439,17 @@
         let scale = 1;
 
         if (isLandscape) {
-            // 横向きの時は、タップしやすさ重視
-            // グレーの盤面(550px)が、画面の横幅に対して余裕を持って収まる程度に拡大
-            // カードの右側が多少はみ出しても、盤面を大きく表示する
-            const scaleToGrid = availableWidth / (gridWidth + 100); // 盤面 + 少しの余白
-            const scaleToHeight = availableHeight / 850; // 盤面の高さ(700) + 前後の余白
-            
-            // 盤面が画面内に綺麗に収まる最大の倍率を採用
+            const scaleToGrid = availableWidth / (gridWidth + 100);
+            const scaleToHeight = availableHeight / 850;
             scale = Math.min(scaleToGrid, scaleToHeight);
-            
-            // あまりに巨大になりすぎないよう制限（最大1.4倍程度）
             if (scale > 1.4) scale = 1.4;
-            
         } else {
-            // 縦向きの時は、前回の要望通りカード全体が収まるようにする
             const scaleX = availableWidth / wrapperWidth;
             const scaleY = availableHeight / wrapperHeight;
             scale = Math.min(scaleX, scaleY, 1);
         }
         
         container.style.transform = `scale(${scale})`;
-        
-        // 縮小された比率に合わせてコンテナの実際の専有サイズを再設定
         container.style.width = `${wrapperWidth * scale}px`;
         container.style.height = `${wrapperHeight * scale}px`;
     }
@@ -536,7 +528,33 @@
                 scale: 2,
                 backgroundColor: "#ffffff",
                 logging: false,
-                useCORS: true
+                useCORS: true,
+                onclone: (clonedDoc) => {
+                    const clonedWrapper = clonedDoc.getElementById('analysis-wrapper');
+                    clonedWrapper.style.transform = 'none'; 
+                    
+                    const inputs = clonedDoc.querySelectorAll('input');
+                    inputs.forEach(input => {
+                        const val = input.value || input.placeholder;
+                        const parent = input.parentElement;
+                        const textReplacement = clonedDoc.createElement('div');
+                        textReplacement.textContent = val;
+                        textReplacement.style.cssText = `
+                            padding: 6px 10px;
+                            border: 1px solid #fca5a5;
+                            border-radius: 6px;
+                            font-size: 0.85rem;
+                            font-weight: bold;
+                            color: #1e293b;
+                            background: white;
+                            min-height: 33px;
+                            width: 100%;
+                            line-height: 1.5;
+                        `;
+                        input.style.display = 'none';
+                        parent.appendChild(textReplacement);
+                    });
+                }
             });
             
             const image = canvas.toDataURL("image/png");
@@ -712,7 +730,6 @@
         ids.forEach(id => document.getElementById(id).classList.toggle('hidden'));
         document.getElementById(`btn-${type}`).classList.toggle('active');
         
-        // レイアウト変化後に再度ズームを計算
         setTimeout(applyResponsiveZoom, 50);
     }
 
