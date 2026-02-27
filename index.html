@@ -420,6 +420,11 @@
         setTimeout(applyResponsiveZoom, 100);
     }
 
+    // デバイス判定（iPadかどうか）
+    function isIPad() {
+        return /Macintosh/i.test(navigator.userAgent) && navigator.maxTouchPoints > 1 || /iPad/i.test(navigator.userAgent);
+    }
+
     // PC/iPad両方で全体が収まるようにスケーリングを調整する関数
     function applyResponsiveZoom() {
         const container = document.getElementById('zoom-container');
@@ -436,11 +441,23 @@
         const scaleX = availableWidth / wrapperWidth;
         const scaleY = availableHeight / wrapperHeight;
         
-        // 小さい方の比率を採用して全体を収める
+        // 基本的なスケール計算
         let scale = Math.min(scaleX, scaleY);
         
-        // PCの巨大モニターなどで大きくなりすぎないように制限（最大1.2倍程度）
-        if (scale > 1.2) scale = 1.2;
+        // 特殊条件：iPadかつ横向き（Landscape）の場合
+        const isLandscape = window.innerWidth > window.innerHeight;
+        if (isIPad() && isLandscape) {
+            // iPad横向き時はタップしやすさを重視するため、縦横のうち大きい方を優先して
+            // 画面内にギリギリ収まる最大サイズまで引き上げる
+            // (通常よりも少しマージンを詰めて拡大を優先)
+            scale = Math.min(availableWidth / wrapperWidth, (availableHeight + 40) / wrapperHeight);
+            
+            // iPadでは1.5倍程度まで拡大を許容する
+            if (scale > 1.5) scale = 1.5;
+        } else {
+            // PCや縦向き時は、見切れ防止のため従来の制限
+            if (scale > 1.2) scale = 1.2;
+        }
         
         container.style.transform = `scale(${scale})`;
         // コンテナ自体のサイズをスケール後のサイズに合わせる
@@ -449,6 +466,7 @@
     }
 
     window.addEventListener('resize', applyResponsiveZoom);
+    window.addEventListener('orientationchange', () => setTimeout(applyResponsiveZoom, 300));
 
     function onGlobalClick(e) {
         if (e.target.tagName === 'INPUT') return;
