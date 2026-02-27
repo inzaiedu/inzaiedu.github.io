@@ -291,6 +291,28 @@
         .stat-value { font-size: 1.1rem; font-weight: 800; color: var(--text-main); }
         .stat-note { font-size: 0.65rem; color: #94a3b8; margin-top: 8px; text-align: center; font-weight: bold; width: 100%; position: absolute; bottom: -24px; left: 0; }
 
+        /* 総投球数用のスタイル */
+        .total-shots-card {
+            grid-column: 2 / 4; /* 縦グラフと箱ひげ図の列にまたがる */
+            grid-row: 2 / 4;    /* 横グラフと箱ひげ図の行にまたがる */
+            background: #f8fafc;
+            border-radius: 8px;
+            border: 2px solid var(--primary-light); /* 少し目立たせるための枠線 */
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            width: 90px;
+            height: 90px;
+            justify-self: center;
+            align-self: center;
+            transform: translate(10px, 10px); /* グラフ軸との干渉を避ける微調整 */
+        }
+        .total-shots-card .stat-value {
+            font-size: 1.6rem;
+            color: var(--primary); /* アクセントカラー */
+        }
+
         .history-panel {
             width: 100%;
             background: #fff;
@@ -377,6 +399,12 @@
             <div id="chart-h" class="chart-h"></div>
             <div id="boxplot-h" class="boxplot-h"></div>
             <div id="stats-h" class="stats-h"></div>
+
+            <!-- 新しく追加する総投球数 -->
+            <div class="total-shots-card">
+                <div class="stat-label">総投球数</div>
+                <div class="stat-value" id="total-shots-count">0</div>
+            </div>
         </div>
     </div>
 </main>
@@ -647,6 +675,9 @@
         renderBoxPlot('boxplot-h', cols, 11, 'h');
         renderStats('stats-v-items', rows, false);
         renderStats('stats-h', cols, true);
+        
+        // 総投球数の更新
+        document.getElementById('total-shots-count').textContent = shots.length;
     }
 
     function renderBars(containerId, data, max, type) {
