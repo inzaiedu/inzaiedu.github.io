@@ -381,7 +381,7 @@
             <div id="boxplot-v" class="boxplot-v"></div>
             
             <div id="stats-v" class="stats-v">
-                <!-- モーター設定入力欄 -->
+                <!-- モーター設定入力欄 (常に表示) -->
                 <div class="motor-settings" onclick="event.stopPropagation()">
                     <div class="input-group">
                         <label>モータースピード (%)</label>
@@ -393,6 +393,7 @@
                     </div>
                 </div>
                 
+                <!-- 統計項目のみを切り替え対象にする -->
                 <div id="stats-v-items" class="stats-container"></div>
             </div>
 
@@ -776,12 +777,18 @@
 
     function toggleLayer(type) {
         resetDeleteButton();
-        let ids = [];
-        if (type === 'graph') ids = ['chart-v', 'chart-h'];
-        else if (type === 'boxplot') ids = ['boxplot-v', 'boxplot-h'];
-        else if (type === 'stats') ids = ['stats-v', 'stats-h'];
+        if (type === 'graph') {
+            document.getElementById('chart-v').classList.toggle('hidden');
+            document.getElementById('chart-h').classList.toggle('hidden');
+        } else if (type === 'boxplot') {
+            document.getElementById('boxplot-v').classList.toggle('hidden');
+            document.getElementById('boxplot-h').classList.toggle('hidden');
+        } else if (type === 'stats') {
+            // 統計数値のみを制御する
+            document.getElementById('stats-v-items').classList.toggle('hidden');
+            document.getElementById('stats-h').classList.toggle('hidden');
+        }
 
-        ids.forEach(id => document.getElementById(id).classList.toggle('hidden'));
         document.getElementById(`btn-${type}`).classList.toggle('active');
         
         setTimeout(applyResponsiveZoom, 50);
