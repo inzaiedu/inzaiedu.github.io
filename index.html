@@ -611,8 +611,18 @@
             
             const image = canvas.toDataURL("image/png");
             const link = document.createElement('a');
-            const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-            link.download = `roboccia-analysis-${timestamp}.png`;
+            
+            // 日時フォーマットの作成 (YYYY-M-D-H:M)
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = now.getMonth() + 1;
+            const day = now.getDate();
+            const hours = now.getHours();
+            const minutes = now.getMinutes().toString().padStart(2, '0');
+            
+            const timestamp = `${year}-${month}-${day}-${hours}:${minutes}`;
+            link.download = `${timestamp}-roboccia-analysis.png`;
+            
             link.href = image;
             link.click();
             
